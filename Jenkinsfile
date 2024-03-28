@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        registry = "imranvisualpath/vproappdock"
+        registry = "jugal109/vprofile-app-jenkins"
         registryCredential = 'dockerhub'
     }
 
