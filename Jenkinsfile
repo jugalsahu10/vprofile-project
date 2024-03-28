@@ -1,110 +1,99 @@
 pipeline {
-
     agent any
-/*
-	tools {
-        maven "maven3"
-    }
-*/
+
     environment {
         registry = "imranvisualpath/vproappdock"
         registryCredential = 'dockerhub'
     }
 
-    stages{
-
-        stage('BUILD'){
+    stages {
+        stage('Build') {
             steps {
                 sh 'mvn clean install -DskipTests'
             }
             post {
                 success {
-                    echo 'Now Archiving...'
+                    echo 'Archiving artifacts...'
                     archiveArtifacts artifacts: '**/target/*.war'
                 }
             }
         }
 
-        stage('UNIT TEST'){
+        stage('Unit Test') {
             steps {
                 sh 'mvn test'
             }
         }
 
-        stage('INTEGRATION TEST'){
+        stage('Integration Test') {
             steps {
                 sh 'mvn verify -DskipUnitTests'
             }
         }
 
-        stage ('CODE ANALYSIS WITH CHECKSTYLE'){
+        stage('Code Analysis with Checkstyle') {
             steps {
                 sh 'mvn checkstyle:checkstyle'
             }
             post {
                 success {
-                    echo 'Generated Analysis Result'
+                    echo 'Generated Checkstyle analysis result'
                 }
             }
         }
 
-
-        stage('Building image') {
-            steps{
-              script {
-                dockerImage = docker.build registry + ":$BUILD_NUMBER"
-              }
+        stage('Build Docker Image') {
+            steps {
+                script {
+                    dockerImage = docker.build registry + ":$BUILD_NUMBER"
+                }
             }
         }
         
-        stage('Deploy Image') {
-          steps{
-            script {
-              docker.withRegistry( '', registryCredential ) {
-                dockerImage.push("$BUILD_NUMBER")
-                dockerImage.push('latest')
-              }
+        stage('Deploy Docker Image') {
+            steps {
+                script {
+                    docker.withRegistry('', registryCredential) {
+                        dockerImage.push("$BUILD_NUMBER")
+                        dockerImage.push('latest')
+                    }
+                }
             }
-          }
         }
 
-        stage('Remove Unused docker image') {
-          steps{
-            sh "docker rmi $registry:$BUILD_NUMBER"
-          }
+        stage('Remove Unused Docker Image') {
+            steps {
+                sh "docker rmi $registry:$BUILD_NUMBER"
+                sh "docker rmi $registry:latest"
+            }
         }
 
-        stage('CODE ANALYSIS with SONARQUBE') {
-
+        stage('Code Analysis with SonarQube') {
             environment {
                 scannerHome = tool 'mysonarscanner4'
             }
-
             steps {
                 withSonarQubeEnv('sonar-pro') {
-                    sh '''${scannerHome}/bin/sonar-scanner -Dsonar.projectKey=vprofile \
-                   -Dsonar.projectName=vprofile-repo \
-                   -Dsonar.projectVersion=1.0 \
-                   -Dsonar.sources=src/ \
-                   -Dsonar.java.binaries=target/test-classes/com/visualpathit/account/controllerTest/ \
-                   -Dsonar.junit.reportsPath=target/surefire-reports/ \
-                   -Dsonar.jacoco.reportsPath=target/jacoco.exec \
-                   -Dsonar.java.checkstyle.reportPaths=target/checkstyle-result.xml'''
+                    sh """${scannerHome}/bin/sonar-scanner \
+                        -Dsonar.projectKey=vprofile \
+                        -Dsonar.projectName=vprofile-repo \
+                        -Dsonar.projectVersion=1.0 \
+                        -Dsonar.sources=src/ \
+                        -Dsonar.java.binaries=target/test-classes/com/visualpathit/account/controllerTest/ \
+                        -Dsonar.junit.reportsPath=target/surefire-reports/ \
+                        -Dsonar.java.checkstyle.reportPaths=target/checkstyle-result.xml"""
                 }
-
                 timeout(time: 10, unit: 'MINUTES') {
                     waitForQualityGate abortPipeline: true
                 }
             }
         }
+
         stage('Kubernetes Deploy') {
-	  agent { label 'KOPS' }
+            agent { label 'KOPS' }
             steps {
-                    sh "helm upgrade --install --force vproifle-stack helm/vprofilecharts --set appimage=${registry}:${BUILD_NUMBER} --namespace prod"
+                sh "helm upgrade --install --force vprofile-stack helm/vprofilecharts --set appimage=${registry}:${BUILD_NUMBER} --namespace prod"
             }
         }
-
     }
-
-
 }
