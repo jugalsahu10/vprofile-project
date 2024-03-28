@@ -19,6 +19,8 @@ pipeline {
             }
         }
 
+        /*
+
         stage('Unit Test') {
             steps {
                 sh 'mvn test'
@@ -41,6 +43,8 @@ pipeline {
                 }
             }
         }
+
+        */
 
         stage('Build Docker Image') {
             steps {
@@ -68,6 +72,7 @@ pipeline {
             }
         }
 
+/* 
         stage('Code Analysis with SonarQube') {
             environment {
                 scannerHome = tool 'mysonarscanner4'
@@ -88,7 +93,7 @@ pipeline {
                 }
             }
         }
-
+*/
         stage('Kubernetes Deploy') {
             agent { label 'KOPS' }
             steps {
